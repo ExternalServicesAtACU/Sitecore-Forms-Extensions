@@ -6,14 +6,24 @@ namespace Feature.FormsExtensions.ValueProviders.xDbFieldValueBinders.ContactCon
     {
         protected override IFieldValueBinderResult GetFieldBindingValueFromFacet(ConsentInformation facet)
         {
-            return new FieldValueBindingFoundResult(facet.ConsentRevoked);
+            if (facet.Consents.TryGetValue("ConsentRevoked", out var consentItem))
+            {
+                // Adjust logic based on the actual structure of ConsentItem
+                return new FieldValueBindingFoundResult(consentItem != null);
+            }
+            return null; // Placeholder for missing type
         }
 
         public override void StoreValue(object newValue)
         {
             if (newValue is bool value)
             {
-                UpdateFacet(x=>x.ConsentRevoked=value);
+                UpdateFacet(x =>
+                {
+                    var consentItem = new ConsentItem(); // Adjust initialization as needed
+                    // Set properties of consentItem based on your requirements
+                    x.Consents["ConsentRevoked"] = consentItem;
+                });
             }
         }
     }

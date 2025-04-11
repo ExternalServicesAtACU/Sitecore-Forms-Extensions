@@ -1,6 +1,8 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
-using Sitecore.ExperienceForms.RobotDetection;
+using Microsoft.Extensions.DependencyInjection;
+using Sitecore.DependencyInjection;
+using Sitecore.ExperienceForms.Tracking;
 using Sitecore.Globalization;
 
 namespace Feature.FormsExtensions.Fields.RobotDetection
@@ -8,9 +10,16 @@ namespace Feature.FormsExtensions.Fields.RobotDetection
     [AttributeUsage(AttributeTargets.Property)]
     public class RobotDetectionValidationAttribute : ValidationAttribute
     {
+        private readonly IRobotDetection _robotDetection;
+
+        public RobotDetectionValidationAttribute()
+        {
+            _robotDetection = ServiceLocator.ServiceProvider.GetService<IRobotDetection>();
+        }
+
         public override bool IsValid(object value)
         {
-            return RobotDetectionHelper.IsContactClassificationGuessed;
+            return _robotDetection != null && !_robotDetection.IsRobot;
         }
 
         public override string FormatErrorMessage(string name)

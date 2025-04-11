@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Threading.Tasks;
 using Feature.FormsExtensions.XDb.Model;
 using Sitecore.Analytics;
 using Sitecore.Analytics.Model;
@@ -7,50 +8,77 @@ using Sitecore.XConnect;
 using Sitecore.XConnect.Client;
 using Sitecore.XConnect.Client.Configuration;
 using Sitecore.XConnect.Collection.Model;
-using Contact = Sitecore.XConnect.Contact;
-using Facet = Sitecore.XConnect.Facet;
+
+// Aliases to avoid ambiguity
+using XConnectContact = Sitecore.XConnect.Contact;
+using TrackingContact = Sitecore.Analytics.Tracking.Contact;
 
 namespace Feature.FormsExtensions.XDb.Repository
 {
     public class XDbContactRepository : IXDbContactRepository
     {
+        [Obsolete("Use UpdateXDbContactEmailAsync to avoid potential deadlocks.")]
         public void UpdateXDbContactEmail(IXDbContactWithEmail basicContact)
+        {
+            UpdateXDbContactEmailAsync(basicContact).GetAwaiter().GetResult();
+        }
+
+        public async Task UpdateXDbContactEmailAsync(IXDbContactWithEmail basicContact)
         {
             using (var client = SitecoreXConnectClientConfiguration.GetClient())
             {
                 var reference = new IdentifiedContactReference(basicContact.IdentifierSource, basicContact.IdentifierValue);
-                var xDbContact = client.Get(reference, new ContactExpandOptions(CollectionModel.FacetKeys.PersonalInformation, CollectionModel.FacetKeys.EmailAddressList));
-                SetEmail(xDbContact, basicContact, client);
-                client.Submit();
+                var expandOptions = new ContactExpandOptions(CollectionModel.FacetKeys.PersonalInformation, CollectionModel.FacetKeys.EmailAddressList);
+                var xDbContact = await client.GetAsync<XConnectContact>(reference, new ContactExecutionOptions(expandOptions));
+
+                if (xDbContact != null)
+                {
+                    SetEmail(xDbContact, basicContact, client);
+                    await client.SubmitAsync();
+                }
             }
         }
 
+        [Obsolete("Use GetContactIdAsync to avoid potential deadlocks.")]
         public Guid? GetContactId(IdentifiedContactReference reference)
+        {
+            return GetContactIdAsync(reference).GetAwaiter().GetResult();
+        }
+
+        public async Task<Guid?> GetContactIdAsync(IdentifiedContactReference reference)
         {
             using (var client = SitecoreXConnectClientConfiguration.GetClient())
             {
-                var contact = client.Get(reference,new ContactExpandOptions());
+                var expandOptions = new ContactExpandOptions();
+                var contact = await client.GetAsync<XConnectContact>(reference, new ContactExecutionOptions(expandOptions));
                 return contact?.Id;
             }
         }
-        
+
+        [Obsolete("Use UpdateContactFacetAsync to avoid potential deadlocks.")]
         public void UpdateContactFacet<T>(IdentifiedContactReference reference, ContactExpandOptions expandOptions, Action<T> updateFacets, Func<T> createFacet) where T : Facet
+        {
+            UpdateContactFacetAsync(reference, expandOptions, updateFacets, createFacet).GetAwaiter().GetResult();
+        }
+
+        public async Task UpdateContactFacetAsync<T>(IdentifiedContactReference reference, ContactExpandOptions expandOptions, Action<T> updateFacets, Func<T> createFacet) where T : Facet
         {
             using (var client = SitecoreXConnectClientConfiguration.GetClient())
             {
-                var xDbContact = client.Get(reference, expandOptions);
+                var xDbContact = await client.GetAsync<XConnectContact>(reference, new ContactExecutionOptions(expandOptions));
+
                 if (xDbContact != null)
                 {
                     MakeContactKnown(client, xDbContact);
                     var facet = xDbContact.GetFacet<T>() ?? createFacet();
                     updateFacets(facet);
                     client.SetFacet(xDbContact, facet);
-                    client.Submit();
+                    await client.SubmitAsync();
                 }
             }
         }
 
-        public void SaveNewContactToCollectionDb(Sitecore.Analytics.Tracking.Contact contact)
+        public void SaveNewContactToCollectionDb(TrackingContact contact)
         {
             if (CreateContactManager() is ContactManager manager)
             {
@@ -58,7 +86,8 @@ namespace Feature.FormsExtensions.XDb.Repository
                 manager.SaveContactToCollectionDb(contact);
             }
         }
-        private static void MakeContactKnown(IXdbContext client, Contact contact)
+
+        private static void MakeContactKnown(IXdbContext client, XConnectContact contact)
         {
             if (contact.IsKnown)
             {
@@ -70,7 +99,6 @@ namespace Feature.FormsExtensions.XDb.Repository
             }
             client.AddContactIdentifier(contact, new ContactIdentifier("scformsextension-known", Guid.NewGuid().ToString("N"), ContactIdentifierType.Known));
         }
-
 
         private static object CreateContactManager()
         {
@@ -88,28 +116,36 @@ namespace Feature.FormsExtensions.XDb.Repository
             }
         }
 
+        [Obsolete("Use UpdateOrCreateXDbServiceContactWithEmailAsync to avoid potential deadlocks.")]
         public void UpdateOrCreateXDbServiceContactWithEmail(IXDbContactWithEmail serviceContact)
+        {
+            UpdateOrCreateXDbServiceContactWithEmailAsync(serviceContact).GetAwaiter().GetResult();
+        }
+
+        public async Task UpdateOrCreateXDbServiceContactWithEmailAsync(IXDbContactWithEmail serviceContact)
         {
             using (var client = SitecoreXConnectClientConfiguration.GetClient())
             {
                 var reference = new IdentifiedContactReference(serviceContact.IdentifierSource, serviceContact.IdentifierValue);
-                var contact = client.Get(reference, new ContactExpandOptions(CollectionModel.FacetKeys.EmailAddressList));
+                var expandOptions = new ContactExpandOptions(CollectionModel.FacetKeys.EmailAddressList);
+                var contact = await client.GetAsync<XConnectContact>(reference, new ContactExecutionOptions(expandOptions));
+
                 if (contact == null)
                 {
-                    contact = new Contact(new ContactIdentifier(reference.Source,reference.Identifier,ContactIdentifierType.Known));
-                    SetEmail(contact, serviceContact, client);
-                    client.AddContact(contact);
-                    client.Submit();
+                    var newContact = new XConnectContact(new ContactIdentifier(reference.Source, reference.Identifier, ContactIdentifierType.Known));
+                    SetEmail(newContact, serviceContact, client);
+                    client.AddContact(newContact);
+                    await client.SubmitAsync();
                 }
                 else if (contact.Emails()?.PreferredEmail.SmtpAddress != serviceContact.Email)
                 {
                     SetEmail(contact, serviceContact, client);
-                    client.Submit();
+                    await client.SubmitAsync();
                 }
             }
         }
-        
-        private static void SetEmail(Contact contact, IXDbContactWithEmail xDbContact, IXdbContext client)
+
+        private static void SetEmail(XConnectContact contact, IXDbContactWithEmail xDbContact, IXdbContext client)
         {
             if (string.IsNullOrEmpty(xDbContact.Email))
             {
