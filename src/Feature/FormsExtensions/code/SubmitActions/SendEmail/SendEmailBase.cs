@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using Feature.FormsExtensions.SubmitActions.SendEmail.Tokens;
 using Microsoft.Extensions.DependencyInjection;
 using Sitecore.DependencyInjection;
@@ -13,64 +11,76 @@ using Sitecore.ExperienceForms.Processing;
 using Sitecore.ExperienceForms.Processing.Actions;
 using Sitecore.Framework.Messaging;
 using Sitecore.XConnect;
+using System;
+using System.Collections.Generic;
 
 namespace Feature.FormsExtensions.SubmitActions.SendEmail
 {
     public abstract class SendEmailBase<T> : SubmitActionBase<T> where T : SendEmailData
     {
-        private readonly IClientApiService clientApiService;
-        private readonly ILogger logger;
-        private readonly IMailTokenBuilder mailTokenBuilder;
-        
-        protected SendEmailBase(ISubmitActionData submitActionData, ILogger logger, IClientApiService clientApiService, IMailTokenBuilder mailTokenBuilder) : base(submitActionData)
+        private readonly IClientApiService _clientApiService;
+        private readonly ILogger _logger;
+        private readonly IMailTokenBuilder _mailTokenBuilder;
+
+        protected SendEmailBase(ISubmitActionData submitActionData, ILogger logger, IClientApiService clientApiService, IMailTokenBuilder mailTokenBuilder) 
+            : base(submitActionData)
         {
-            this.logger = logger;
-            this.clientApiService = clientApiService;
-            this.mailTokenBuilder = mailTokenBuilder;
+            _logger = logger;
+            _clientApiService = clientApiService;
+            _mailTokenBuilder = mailTokenBuilder;
         }
 
         protected override bool Execute(T data, FormSubmitContext formSubmitContext)
         {
             if (data.MessageId == Guid.Empty)
             {
-                logger.LogWarn("Empty message id");
+                _logger.LogWarn("Empty message id");
                 return false;
             }
+
             var toContacts = GetToContacts(data, formSubmitContext);
             if (toContacts == null || toContacts.Count == 0)
             {
                 return false;
             }
+
+#if !DEBUG
             try
             {
+#endif
                 var customTokens = BuildCustomTokens(data, formSubmitContext);
                 foreach (var to in toContacts)
                 {
                     SendMail(to, customTokens, data.MessageId);
                 }
+#if !DEBUG
             }
             catch (Exception ex)
             {
                 logger.LogError(ex.Message, ex);
                 return false;
             }
+#endif
             return true;
         }
 
         protected virtual void SendMail(ContactIdentifier toContact, Dictionary<string, object> customTokens, Guid messageId)
         {
-            var automatedMessage = new AutomatedMessage();
-            automatedMessage.ContactIdentifier = toContact;
-            automatedMessage.MessageId = messageId;
-            automatedMessage.CustomTokens = customTokens;
-            automatedMessage.TargetLanguage = Sitecore.Context.Language.Name;
+            var automatedMessage = new AutomatedMessage
+            {
+                ContactIdentifier = toContact,
+                MessageId = messageId,
+                CustomTokens = customTokens,
+                TargetLanguage = Sitecore.Context.Language.Name
+            };
             SendAutomatedMessage(automatedMessage);
         }
 
         private void SendAutomatedMessage(AutomatedMessage automatedMessage)
         {
-            if(clientApiService!=null){
-                clientApiService.SendAutomatedMessage(automatedMessage);
+            if (_clientApiService != null)
+            {
+                _clientApiService.SendAutomatedMessage(automatedMessage);
             }
             else
             {
@@ -81,11 +91,9 @@ namespace Feature.FormsExtensions.SubmitActions.SendEmail
 
         protected virtual Dictionary<string, object> BuildCustomTokens(T data, FormSubmitContext formSubmitContext)
         {
-            return mailTokenBuilder.BuildTokens(data.FieldsTokens, formSubmitContext);
+            return _mailTokenBuilder.BuildTokens(data.FieldsTokens, formSubmitContext);
         }
-        
+
         protected abstract IList<ContactIdentifier> GetToContacts(T data, FormSubmitContext formSubmitContext);
-        
     }
-    
 }
