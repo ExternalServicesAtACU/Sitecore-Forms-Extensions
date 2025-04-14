@@ -10,8 +10,7 @@ namespace Feature.FormsExtensions.XDb.Repository
     {
         Guid? GetContactId(IdentifiedContactReference reference);
         void UpdateXDbContactEmail(IXDbContactWithEmail contact);
-        void UpdateOrCreateXDbServiceContactWithEmail(IXDbContactWithEmail contact);
-        //Task UpdateOrCreateXDbServiceContactWithEmailAsync(IXDbContactWithEmail contact);
+        Task UpdateOrCreateXDbServiceContactWithEmailAsync(IXDbContactWithEmail contact);
         void UpdateContactFacet<T>(IdentifiedContactReference reference, ContactExpandOptions expandOptions,
             Action<T> updateFacets, Func<T> createFacet) where T : Facet;
         void SaveNewContactToCollectionDb(Sitecore.Analytics.Tracking.Contact contact);

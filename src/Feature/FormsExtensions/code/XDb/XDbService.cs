@@ -38,7 +38,7 @@ namespace Feature.FormsExtensions.XDb
         public void UpdateOrCreateServiceContact(IXDbContactWithEmail contact)
         {
             CheckIdentifier(contact);
-            _xDbContactRepository.UpdateOrCreateXDbServiceContactWithEmail(contact);
+            _xDbContactRepository.UpdateOrCreateXDbServiceContactWithEmailAsync(contact);
         }
 
         public void UpdateCurrentContactFacet<T>(string facetKey, Action<T> updateFacets) where T : Facet, new()
